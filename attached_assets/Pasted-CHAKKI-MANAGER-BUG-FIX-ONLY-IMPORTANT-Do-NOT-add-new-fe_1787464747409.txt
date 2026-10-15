@@ -1,0 +1,106 @@
+CHAKKI MANAGER — BUG FIX ONLY
+
+IMPORTANT:
+Do NOT add new features.
+Do NOT redesign the UI.
+Do NOT change existing workflows unless required to fix a bug.
+Do NOT remove any existing working functionality.
+First inspect the entire existing project and understand the current data flow, calculations, database, authentication and synchronization.
+
+Our only goal right now is to find and fix existing bugs.
+
+BUGS TO FIX:
+
+1. CALCULATION / HISAB BUG
+- All flour-mill calculations must be mathematically correct.
+- Weight × rate must always produce the correct total.
+- Cash, credit/udhar, paid amount and remaining balance must always match.
+- Dashboard totals, customer khata totals and reports must use the same correct source data.
+- Never show a different total on different screens.
+
+2. RATE INPUT BUG
+- If the user enters rate 2, it must remain exactly 2.
+- If the user enters rate 3, it must remain exactly 3.
+- Do NOT automatically create values such as 2.1, 3.1, 3.4, 3.5, etc.
+- Rates must be stored and displayed exactly as entered, while still allowing valid decimal rates when the user intentionally enters a decimal.
+
+3. UDHAAR / KHATA BUG
+- When a customer is given credit/udhaar, the transaction must correctly appear in that customer's Khata.
+- The customer's outstanding balance must increase correctly.
+- When the customer makes a payment, the outstanding balance must decrease correctly.
+- Payment history must remain accurate.
+- Do not create duplicate transactions.
+
+4. MULTI-PHONE DATA SYNCHRONIZATION BUG — VERY IMPORTANT
+Currently, udhaar and correct account information is not showing correctly on another phone.
+
+Fix this properly:
+- The same account/user logged in on multiple phones must see the same customer data.
+- If Phone A records ₹500 udhaar for a customer, Phone B must also show the same ₹500 udhaar.
+- Weight, rate, total, payment, credit and remaining balance must be identical on all devices.
+- If a transaction is added, edited or deleted on one phone, the change must synchronize to the other phone.
+- Do NOT rely on separate local phone storage as the source of truth.
+- Use the existing central database/backend as the single source of truth.
+- Handle synchronization safely so old cached data does not overwrite newer server data.
+- Refresh/reload the relevant data after changes so the latest correct information is displayed.
+- Do not duplicate transactions during synchronization.
+
+5. EDIT BUG
+- Editing an existing transaction must correctly update all related totals.
+- Do not leave the old value included in calculations.
+- Customer Khata, dashboard and reports must all update consistently.
+
+6. DELETE BUG
+- If an existing transaction is deleted through the current app workflow, all related totals must recalculate correctly.
+- Do not leave deleted amounts included in the balance.
+- Do not delete unrelated customer transactions.
+
+7. CUSTOMER KHATA SCREEN
+- Customer's complete transaction history must be shown correctly.
+- Opening balance, credit, payments and remaining balance must match the actual transactions.
+- The same customer must show the same information on every device.
+
+8. DATE / DAYS DISPLAY BUG
+- Fix the incorrect "29 days" display issue.
+- Dates and elapsed-day calculations must use the correct stored date and current date.
+- Do not hard-code any number of days.
+
+9. DATA CONSISTENCY
+The following must always agree with each other:
+- Customer Khata
+- Dashboard
+- Transaction history
+- Reports
+- Cash total
+- Udhaar total
+- Remaining balance
+
+10. RESPONSIVE BUGS
+- Existing UI must work correctly on different Android phone screen sizes.
+- Do not change the design unnecessarily.
+- Fix only overflow, clipped text, incorrect positioning or elements that disappear.
+
+IMPORTANT DEVELOPMENT RULES:
+- Before changing code, inspect the existing implementation and identify the root cause of each bug.
+- Do not patch symptoms with hard-coded values.
+- Do not create duplicate database tables or duplicate data models unless absolutely necessary.
+- Preserve all existing working features.
+- Make the smallest safe changes required.
+- After each fix, test the affected workflow.
+- Run the existing type checks/build/tests after making changes.
+- Do not claim a bug is fixed unless you actually verify the relevant workflow.
+
+FINAL REQUIREMENT:
+After fixing everything above, provide a concise report containing:
+1. Bugs found.
+2. Root cause of each bug.
+3. Files/components changed.
+4. What was fixed.
+5. Tests performed.
+6. Any remaining issue that could not be verified.
+
+REMEMBER:
+THIS IS A BUG-FIX TASK ONLY.
+NO NEW FEATURES.
+NO UNNECESSARY UI CHANGES.
+NO UNRELATED CODE CHANGES.

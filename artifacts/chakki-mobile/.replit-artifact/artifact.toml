@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/chakki-mobile/"
+title = "Chakki Manager Mobile"
+description = "A cross-platform mobile testing shell for Chakki Manager, preserving the existing offline-first billing, Khata, settings, and multi-device sync experience on Android and iOS."
+version = "1.0.0"
+id = "artifacts/chakki-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/chakki-mobile/" ]
+localPort = 22099
+
+[services.development]
+run = "pnpm --filter @workspace/chakki-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/chakki-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/chakki-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "22099"
+BASE_PATH = "/chakki-mobile/"

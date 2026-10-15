@@ -1,0 +1,1 @@
+- [Chakki Manager Architecture](chakki-app-architecture.md) — localStorage-first flour-mill app; rates, sync model, dark mode, calculation precision rule.

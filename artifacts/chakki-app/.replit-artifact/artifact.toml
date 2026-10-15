@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Chakki Manager"
+version = "1.0.0"
+id = "artifacts/chakki-app"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18855
+
+[services.development]
+run = "pnpm --filter @workspace/chakki-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/chakki-app", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/chakki-app/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18855"
+BASE_PATH = "/"
