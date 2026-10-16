@@ -148,6 +148,29 @@ export default function AddRecord() {
     }
   }, [anaj, rates, settingsLoaded, isEdit]);
 
+  // Reuse a customer's saved Hindi name on future entries.
+  // Matching uses mobile when both sides have one, otherwise the normalized name.
+  useEffect(() => {
+    if (isEdit) return;
+
+    const nameKey = customerName.trim().normalize("NFC").toLowerCase().replace(/\\s+/g, " ");
+    if (!nameKey) return;
+
+    const mobileDigits = mobile.replace(/\\D/g, "");
+    const previous = [...records]
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .find((record) => {
+        const recordMobile = (record.mobile || "").replace(/\\D/g, "");
+        const recordName = record.customerName.trim().normalize("NFC").toLowerCase().replace(/\\s+/g, " ");
+        if (mobileDigits && recordMobile) return mobileDigits === recordMobile;
+        return recordName === nameKey;
+      });
+
+    if (previous?.customerNameHindi?.trim()) {
+      setCustomerNameHindi(previous.customerNameHindi.trim());
+    }
+  }, [customerName, mobile, records, isEdit]);
+
   // Load existing record
   useEffect(() => {
     if (isEdit && recordsLoaded) {
