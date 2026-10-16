@@ -204,7 +204,7 @@ export default function Khata() {
               return normalizedRecordName === normalizedCustomerName;
             }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
             const profilePhoto = matchingRecords.find((r) => r.photo)?.photo;
-            const profileHindiName = matchingRecords.find((r) => r.customerNameHindi?.trim())?.customerNameHindi?.trim() || englishNameToHindi(c.name);
+            const profileHindiName = matchingRecords.find((r) => r.customerNameHindi?.trim() && /[\u0900-\u097F]/.test(r.customerNameHindi))?.customerNameHindi?.trim() || englishNameToHindi(c.name);
 
             return (
               <div
