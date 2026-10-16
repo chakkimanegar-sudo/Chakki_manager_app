@@ -121,13 +121,11 @@ function mergeEntityArrays(
       continue;
     }
 
-    // BOTH changed.
-    // Server wins to prevent one stale phone overwriting
-    // another phone's newer change.
+    // Both sides changed after the shared base. Keep the server version.
+    // If the server deleted the item, that deletion also wins; never
+    // resurrect a stale client copy after another device deleted it.
     if (serverExists) {
       result.push(serverItem!);
-    } else if (clientExists) {
-      result.push(clientItem!);
     }
   }
 

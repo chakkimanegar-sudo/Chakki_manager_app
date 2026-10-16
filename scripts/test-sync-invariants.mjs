@@ -21,7 +21,8 @@ function mergeEntityArrays(baseValue, clientValue, serverValue) {
     if(cc&&!sc){if(ce)out.push(c);continue}
     if(!cc&&sc){if(se)out.push(s);continue}
     if(!cc&&!sc){if(se)out.push(s);else if(ce)out.push(c);continue}
-    if(se)out.push(s);else if(ce)out.push(c);
+    // Server wins concurrent edits; a server deletion must not be resurrected.
+    if(se)out.push(s);
   }
   return out;
 }
@@ -37,4 +38,7 @@ assert('both independent additions merge', ids(mergeEntityArrays([A],[A,B],[A,C]
 assert('server concurrent edit wins', mergeEntityArrays([A],[{id:'A',v:2}],[{id:'A',v:3}])[0].v===3);
 assert('client edit accepted when server unchanged', mergeEntityArrays([A],[{id:'A',v:2}],[A])[0].v===2);
 assert('client deletion wins when server unchanged', mergeEntityArrays([A],[],[A]).length===0);
-console.log('sync invariant tests: PASS (9/9)');
+assert('server deletion wins over concurrent client edit', ids(mergeEntityArrays([A],[{id:'A',v:9}],[])).length===0);
+assert('server deletion stays deleted with unchanged stale client', ids(mergeEntityArrays([A],[A],[])).length===0);
+assert('server edit wins over concurrent client deletion', mergeEntityArrays([A],[],[{id:'A',v:9}])[0].v===9);
+console.log('sync invariant tests: PASS (12/12)');
