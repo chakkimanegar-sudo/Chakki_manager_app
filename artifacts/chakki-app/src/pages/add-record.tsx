@@ -82,7 +82,8 @@ export default function AddRecord() {
   const handlePhotoChange = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const file = e.target.files?.[0];
+    const input = e.currentTarget;
+    const file = input.files?.[0];
 
     if (!file) return;
 
@@ -91,7 +92,7 @@ export default function AddRecord() {
         title: "Sirf photo select karein",
         variant: "destructive",
       });
-      e.target.value = "";
+      input.value = "";
       return;
     }
 
@@ -100,37 +101,71 @@ export default function AddRecord() {
         title: "Photo 10MB se chhoti honi chahiye",
         variant: "destructive",
       });
-      e.target.value = "";
+      input.value = "";
       return;
     }
 
+    let bitmap: ImageBitmap | undefined;
+    let canvas: HTMLCanvasElement | undefined;
+
     try {
-      // Compress before storing in localStorage. A raw 5–10MB camera photo
-      // becomes a much larger base64 string and can exhaust phone storage.
-      const bitmap = await createImageBitmap(file);
+      // Ask the browser to downscale while decoding. Decoding a 12–50MP
+      // camera photo at full size first can exhaust memory on low-end phones.
       const maxSide = 1280;
-      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      bitmap = await createImageBitmap(file, {
+        resizeWidth: maxSide,
+        resizeQuality: "high",
+      });
+
+      // resizeWidth preserves the aspect ratio. For portrait photos, the
+      // height can still exceed maxSide, so shrink the final canvas as needed.
+      const scale = Math.min(
+        1,
+        maxSide / Math.max(bitmap.width, bitmap.height)
+      );
       const width = Math.max(1, Math.round(bitmap.width * scale));
       const height = Math.max(1, Math.round(bitmap.height * scale));
 
-      const canvas = document.createElement("canvas");
+      canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Photo process nahi ho paayi");
 
       ctx.drawImage(bitmap, 0, 0, width, height);
-      bitmap.close();
 
-      const compressed = canvas.toDataURL("image/jpeg", 0.68);
+      // toBlob uses less peak memory than creating a large base64 string
+      // directly from the canvas. Convert only the already-compressed JPEG.
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas!.toBlob(resolve, "image/jpeg", 0.68);
+      });
+      if (!blob) throw new Error("Photo compress nahi ho paayi");
+
+      const compressed = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") resolve(reader.result);
+          else reject(new Error("Photo read nahi ho paayi"));
+        };
+        reader.onerror = () => reject(new Error("Photo read nahi ho paayi"));
+        reader.readAsDataURL(blob);
+      });
+
       setPhoto(compressed);
-    } catch {
+    } catch (error) {
+      console.error("Customer photo processing failed", error);
       toast({
-        title: "Photo process nahi ho paayi",
+        title: "Photo process nahi ho paayi. Dobara koshish karein.",
         variant: "destructive",
       });
     } finally {
-      e.target.value = "";
+      bitmap?.close();
+      if (canvas) {
+        // Release canvas backing memory promptly on Android devices.
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+      input.value = "";
     }
   };
 
