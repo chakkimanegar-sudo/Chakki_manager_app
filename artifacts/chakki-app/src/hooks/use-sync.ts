@@ -69,6 +69,18 @@ async function requestApiJSON<T>(
     throw new Error(body.error || `${action} fail hua (HTTP ${response.status})`);
   }
 
+  // On the hosted web app, a successful same-origin API response reveals the
+  // real HTTPS origin. Keep it in the backup so a restored APK can use it.
+  const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  if (
+    url.startsWith("/api/") &&
+    !localStorage.getItem(API_SERVER_URL_KEY) &&
+    !isLocalHost &&
+    window.location.protocol === "https:"
+  ) {
+    localStorage.setItem(API_SERVER_URL_KEY, window.location.origin);
+  }
+
   return parsed as T;
 }
 
