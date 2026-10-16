@@ -1,7 +1,8 @@
 import { RecordEntry } from "@/lib/types";
+import React from "react";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pencil, Trash2, Banknote, BookOpen, UserRound } from "lucide-react";
+import { Pencil, Trash2, Banknote, BookOpen, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface RecordCardProps {
@@ -62,20 +63,58 @@ const WhatsAppIcon = () => (
 
 export function RecordCard({ record, onEdit, onDelete }: RecordCardProps) {
   const isUdhar = record.paymentType === "udhar";
+  const [photoExpanded, setPhotoExpanded] = React.useState(false);
 
   return (
     <Card className={`border ${isUdhar ? "border-red-200 bg-red-50/30 dark:border-red-900/40 dark:bg-red-950/20" : "border-border bg-card"} rounded-2xl shadow-sm overflow-hidden`}>
+      {photoExpanded && record.photo && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${record.customerName} photo`}
+          onClick={() => setPhotoExpanded(false)}
+        >
+          <button
+            type="button"
+            className="absolute top-5 right-5 rounded-full bg-white/15 text-white p-2"
+            onClick={() => setPhotoExpanded(false)}
+            aria-label="Close photo"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <div className="max-w-full max-h-full flex flex-col items-center gap-3" onClick={(event) => event.stopPropagation()}>
+            <img
+              src={record.photo}
+              alt={`${record.customerName} customer full photo`}
+              className="max-w-[90vw] max-h-[78vh] object-contain rounded-xl"
+            />
+            <p className="text-white text-lg font-semibold text-center">
+              {record.customerName}
+              {record.customerNameHindi?.trim() ? ` · ${record.customerNameHindi.trim()}` : ""}
+            </p>
+          </div>
+        </div>
+      )}
       <CardContent className="p-4 space-y-3">
         {/* Row 1: customer photo + bilingual name + payment badge */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             {record.photo ? (
-              <img
-                src={record.photo}
-                alt={`${record.customerName} customer`}
-                className="w-14 h-14 rounded-full object-cover border border-border flex-shrink-0"
-                loading="lazy"
-              />
+              <button
+                type="button"
+                onClick={() => setPhotoExpanded(true)}
+                className="rounded-full flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label={`View ${record.customerName}'s full photo`}
+                title="Photo badi karke dekhein"
+              >
+                <img
+                  src={record.photo}
+                  alt={`${record.customerName} customer`}
+                  className="w-14 h-14 rounded-full object-cover border border-border"
+                  loading="lazy"
+                />
+              </button>
             ) : (
               <div className="w-14 h-14 rounded-full bg-secondary text-muted-foreground flex items-center justify-center flex-shrink-0" aria-label="Customer photo not added">
                 <UserRound className="w-6 h-6" />
