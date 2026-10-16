@@ -44,6 +44,14 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Type-check Chakki Manager web app
+        run: pnpm --filter @workspace/chakki-app run typecheck
+        env:
+          NODE_ENV: production
+          PORT: 4173
+          BASE_PATH: ./
+          API_PORT: 5000
+
       - name: Build Chakki Manager web assets
         run: pnpm --filter @workspace/chakki-app run build
         env:
