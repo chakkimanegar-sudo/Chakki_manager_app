@@ -1,0 +1,118 @@
+name: Build Chakki Manager Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'artifacts/chakki-app/**'
+      - 'lib/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/build-android-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  android-apk:
+    name: Build installable Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.5
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Chakki Manager web assets
+        run: pnpm --filter @workspace/chakki-app run build
+        env:
+          NODE_ENV: production
+          PORT: 4173
+          BASE_PATH: ./
+          API_PORT: 5000
+
+      - name: Set up Capacitor Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+          NATIVE_DIR="$RUNNER_TEMP/chakki-native"
+          mkdir -p "$NATIVE_DIR/www"
+          cp -R "$GITHUB_WORKSPACE/artifacts/chakki-app/dist/public/." "$NATIVE_DIR/www/"
+          cd "$NATIVE_DIR"
+
+          cat > package.json <<'JSON'
+          {
+            "name": "chakki-manager-android",
+            "version": "1.0.0",
+            "private": true,
+            "description": "Android wrapper for Chakki Manager",
+            "dependencies": {
+              "@capacitor/android": "^7.0.0",
+              "@capacitor/cli": "^7.0.0",
+              "@capacitor/core": "^7.0.0"
+            }
+          }
+          JSON
+
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "in.chakki.manager",
+            "appName": "Chakki Manager",
+            "webDir": "www",
+            "bundledWebRuntime": false
+          }
+          JSON
+
+          npm install --no-audit --no-fund
+          npx cap add android
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          xml = p.read_text()
+          permission = '<uses-permission android:name="android.permission.CAMERA" />'
+          if permission not in xml:
+              xml = xml.replace("<application", permission + "\n    <application", 1)
+          p.write_text(xml)
+          PY
+
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Save APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chakki-manager-android-apk
+          path: ${{ runner.temp }}/chakki-native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish APK download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-apk-${{ github.run_number }}-${{ github.run_attempt }}
+          name: Chakki Manager Android APK #${{ github.run_number }}
+          body: |
+            Android install package generated from the Chakki Manager main branch.
+            This is a debug APK for direct testing on Android. Enable "Install unknown apps" for the app used to open the downloaded file.
+          prerelease: true
+          make_latest: false
+          files: ${{ runner.temp }}/chakki-native/android/app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
