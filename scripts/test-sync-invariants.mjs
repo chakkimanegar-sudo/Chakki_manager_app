@@ -21,7 +21,8 @@ function mergeEntityArrays(baseValue, clientValue, serverValue) {
     if(cc&&!sc){if(ce)out.push(c);continue}
     if(!cc&&sc){if(se)out.push(s);continue}
     if(!cc&&!sc){if(se)out.push(s);else if(ce)out.push(c);continue}
-    if(se)out.push(s);else if(ce)out.push(c);
+    // Server wins concurrent edits; a server deletion must not be resurrected.
+    if(se)out.push(s);
   }
   return out;
 }
