@@ -5,7 +5,6 @@ export type RecordEntry = {
   mobile: string;
   village?: string;
   photo?: string;
-  photo?: string;
   anaj: string;
   kg: number;
   rate: number;
