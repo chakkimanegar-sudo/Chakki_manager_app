@@ -56,6 +56,7 @@ export default function AddRecord() {
   const isEdit = !!id;
 
   const [customerName, setCustomerName] = useState("");
+  const [customerNameHindi, setCustomerNameHindi] = useState("");
   const [mobile, setMobile] = useState("");
   const [village, setVillage] = useState("");
   const [anaj, setAnaj] = useState("Gehu");
@@ -154,6 +155,7 @@ export default function AddRecord() {
 
       if (record) {
         setCustomerName(record.customerName);
+        setCustomerNameHindi(record.customerNameHindi || "");
         setMobile(record.mobile || "");
         setVillage(record.village || "");
         setAnaj(record.anaj);
@@ -273,6 +275,7 @@ export default function AddRecord() {
 
     const payload = {
       customerName: customerName.trim(),
+      customerNameHindi: customerNameHindi.trim(),
       mobile: mobileDigits,
       village: village.trim(),
       anaj,
@@ -443,6 +446,23 @@ export default function AddRecord() {
             className="h-14 text-base"
             required
           />
+        </div>
+
+        {/* Hindi customer name */}
+        <div className="space-y-1.5">
+          <Label htmlFor="customerNameHindi" className="text-base font-semibold">
+            📝 Grahak ka Naam Hindi mein / हिंदी नाम (Optional)
+          </Label>
+          <Input
+            id="customerNameHindi"
+            placeholder="Jaise: राम कुमार, सीता देवी..."
+            value={customerNameHindi}
+            onChange={(e) => setCustomerNameHindi(e.target.value)}
+            className="h-14 text-base"
+          />
+          <p className="text-xs text-muted-foreground">
+            Papa ko pehchanne mein aasani ke liye English naam ke neeche dikhega.
+          </p>
         </div>
 
         {/* Mobile */}
