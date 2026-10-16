@@ -241,8 +241,14 @@ export default function Khata() {
                           </span>
                         )}
                         {c.village && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />{c.village}
+                          <span className="text-xs text-muted-foreground flex items-start gap-1">
+                            <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                            <span className="flex flex-col leading-tight">
+                              <span>{c.village}</span>
+                              {englishNameToHindi(c.village) && (
+                                <span className="mt-0.5 text-[11px]">{englishNameToHindi(c.village)}</span>
+                              )}
+                            </span>
                           </span>
                         )}
                       </div>
