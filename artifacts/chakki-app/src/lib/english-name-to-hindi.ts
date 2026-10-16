@@ -66,7 +66,7 @@ export function englishNameToHindi(name: string): string {
     // Preserve recognizable phonetic forms for frequently used name spellings.
     const common: Record<string, string> = {
       kanha: "कान्हा", kanhaa: "कान्हा", khan: "खान", kher: "खेर",
-      khe r: "खेर", ramesh: "रमेश", suresh: "सुरेश", mahesh: "महेश",
+      ramesh: "रमेश", suresh: "सुरेश", mahesh: "महेश",
       mohan: "मोहन", rohan: "रोहन", rahul: "राहुल", amit: "अमित",
       sumit: "सुमित", anil: "अनिल", sunil: "सुनील", rajesh: "राजेश",
       sharma: "शर्मा", verma: "वर्मा", singh: "सिंह", yadav: "यादव",
