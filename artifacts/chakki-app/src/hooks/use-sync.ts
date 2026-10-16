@@ -6,6 +6,7 @@ const LAST_SERVER_AT_KEY = "chakki_last_server_at";
 const LAST_SERVER_SNAPSHOT_KEY = "chakki_last_server_snapshot";
 
 const API_SERVER_URL_KEY = "chakki_api_server_url";
+const RESTORE_PENDING_SYNC_KEY = "chakki_restore_pending_sync";
 
 function getApiBase(): string {
   const configured = localStorage.getItem(API_SERVER_URL_KEY)?.trim();
@@ -529,6 +530,24 @@ export function useSync() {
     if (!code) return;
 
     const syncExistingShop = async () => {
+      // A restored JSON backup should be merged into its shop before any
+      // server snapshot is allowed to replace the restored local records.
+      if (localStorage.getItem(RESTORE_PENDING_SYNC_KEY) === "1") {
+        try {
+          await apiJoinShop(code);
+          const pushed = await pushToServer(code);
+          if (pushed) {
+            localStorage.removeItem(RESTORE_PENDING_SYNC_KEY);
+            await pullFromServer(code);
+          } else {
+            setSyncStatus("error");
+          }
+        } catch {
+          setSyncStatus("error");
+        }
+        return;
+      }
+
       const baselineAt = localStorage.getItem(LAST_SERVER_AT_KEY);
       if (!baselineAt) {
         await pullFromServer(code);
