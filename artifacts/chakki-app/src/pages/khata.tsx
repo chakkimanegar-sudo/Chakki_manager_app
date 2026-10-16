@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useKhata } from "@/hooks/use-khata";
+import { useRecords } from "@/hooks/use-records";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,7 @@ const WA_ICON = (
 
 export default function Khata() {
   const { customers, isLoaded, findOrCreateCustomer, deleteCustomer, getCustomerSummary, getCustomerTransactions } = useKhata();
+  const { records } = useRecords();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
@@ -192,6 +194,16 @@ export default function Khata() {
         <div className="space-y-3 pb-4">
           {sortedCustomers.map((c) => {
             const { totalKg, totalAmount, totalPaid, balance, txCount } = getCustomerSummary(c.id);
+            const customerMobile = (c.mobile || "").replace(/\D/g, "");
+            const normalizedCustomerName = c.name.trim().normalize("NFC").toLowerCase().replace(/\s+/g, " ");
+            const matchingRecords = records.filter((r) => {
+              const recordMobile = (r.mobile || "").replace(/\D/g, "");
+              const normalizedRecordName = r.customerName.trim().normalize("NFC").toLowerCase().replace(/\s+/g, " ");
+              if (customerMobile && recordMobile) return customerMobile === recordMobile;
+              return normalizedRecordName === normalizedCustomerName;
+            }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            const profilePhoto = matchingRecords.find((r) => r.photo)?.photo;
+            const profileHindiName = matchingRecords.find((r) => r.customerNameHindi?.trim())?.customerNameHindi?.trim();
 
             return (
               <div
@@ -202,24 +214,41 @@ export default function Khata() {
                 }`}
               >
                 {/* Main row */}
-                <div className="flex items-center justify-between p-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-foreground text-base truncate">{c.name}</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                      {c.mobile && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Phone className="w-3 h-3" />{c.mobile}
-                        </span>
+                <div className="flex items-center justify-between p-4 gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {profilePhoto ? (
+                      <img
+                        src={profilePhoto}
+                        alt={`${c.name} customer`}
+                        className="w-14 h-14 rounded-full object-cover border border-border flex-shrink-0"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full bg-secondary text-muted-foreground flex items-center justify-center flex-shrink-0" aria-label="Customer photo not added">
+                        <span className="text-lg font-bold">{c.name.slice(0, 1).toLocaleUpperCase()}</span>
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-foreground text-base break-words">{c.name}</p>
+                      {profileHindiName && (
+                        <p className="text-sm font-semibold text-muted-foreground leading-tight mt-0.5">{profileHindiName}</p>
                       )}
-                      {c.village && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />{c.village}
-                        </span>
-                      )}
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                        {c.mobile && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Phone className="w-3 h-3" />{c.mobile}
+                          </span>
+                        )}
+                        {c.village && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />{c.village}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{txCount} transactions</p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{txCount} transactions</p>
                   </div>
-                  <div className="flex items-center gap-2 ml-2">
+                  <div className="flex items-center gap-2 ml-1">
                     {c.mobile && balance > 0 && (
                       <button
                         onClick={(e) => sendWhatsAppReminder(e, c)}
