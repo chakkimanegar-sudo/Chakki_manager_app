@@ -21,7 +21,7 @@ const ANAJ_HINDI: Record<string, string> = {
 
 export default function Settings() {
   const { rates, isLoaded, saveRates } = useSettings();
-  const { shopCode, syncStatus, lastSyncTime, setupShop, syncNow, disconnectShop } = useSync();
+  const { shopCode, syncStatus, lastSyncTime, apiServerUrl, saveApiServerUrl, testApiConnection, setupShop, syncNow, disconnectShop } = useSync();
   const { isDark, toggleTheme } = useTheme();
   const { toast } = useToast();
 
@@ -30,6 +30,8 @@ export default function Settings() {
   const [codeInput, setCodeInput] = useState("");
   const [isSettingUp, setIsSettingUp] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
+  const [serverUrlInput, setServerUrlInput] = useState(apiServerUrl);
+  const [isTestingServer, setIsTestingServer] = useState(false);
 
   useEffect(() => {
     if (isLoaded) {
@@ -38,6 +40,35 @@ export default function Settings() {
       setLocalRates(asStrings);
     }
   }, [isLoaded, rates]);
+
+  useEffect(() => {
+    setServerUrlInput(apiServerUrl);
+  }, [apiServerUrl]);
+
+  const handleSaveApiServer = () => {
+    const result = saveApiServerUrl(serverUrlInput);
+    if (!result.success) {
+      toast({ title: result.error ?? "Server URL galat hai", variant: "destructive" });
+      return;
+    }
+    toast({ title: result.value ? "✅ Sync server URL save ho gaya" : "Server URL hata diya gaya" });
+  };
+
+  const handleTestApiServer = async () => {
+    const saveResult = saveApiServerUrl(serverUrlInput);
+    if (!saveResult.success) {
+      toast({ title: saveResult.error ?? "Server URL galat hai", variant: "destructive" });
+      return;
+    }
+    setIsTestingServer(true);
+    const result = await testApiConnection();
+    setIsTestingServer(false);
+    if (result.success) {
+      toast({ title: "✅ Server connected! API sahi jawab de raha hai." });
+    } else {
+      toast({ title: result.error || "Server test fail hua", variant: "destructive" });
+    }
+  };
 
   const handleSaveRates = () => {
     // Validate: all rates must be positive integers
@@ -73,24 +104,42 @@ export default function Settings() {
     }
   };
 
-  // ── Backup (export JSON) ──
-  const handleBackup = () => {
-    const data = {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      records: JSON.parse(localStorage.getItem("chakki_records") ?? "[]"),
-      customers: JSON.parse(localStorage.getItem("khata_customers") ?? "[]"),
-      transactions: JSON.parse(localStorage.getItem("khata_transactions") ?? "[]"),
-      settings: JSON.parse(localStorage.getItem("chakki_settings") ?? "{}"),
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `chakki-backup-${new Date().toISOString().split("T")[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "✅ Backup download ho gaya!" });
+  // ── Backup (export JSON). The file can be saved outside the app before uninstalling. ──
+  const handleBackup = async () => {
+    try {
+      const data = {
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        shopCode: localStorage.getItem("chakki_shop_code") ?? "",
+        apiServerUrl: localStorage.getItem("chakki_api_server_url") ?? "",
+        records: JSON.parse(localStorage.getItem("chakki_records") ?? "[]"),
+        customers: JSON.parse(localStorage.getItem("khata_customers") ?? "[]"),
+        transactions: JSON.parse(localStorage.getItem("khata_transactions") ?? "[]"),
+        settings: JSON.parse(localStorage.getItem("chakki_settings") ?? "{}"),
+      };
+      const filename = `chakki-backup-${new Date().toISOString().split("T")[0]}.json`;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const file = new File([blob], filename, { type: "application/json" });
+
+      if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+        await navigator.share({ title: "Chakki Manager Backup", files: [file] });
+        toast({ title: "✅ Backup share/save ke liye taiyar hai. File ko Downloads ya Drive mein save karein." });
+        return;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+      toast({ title: "✅ Backup file ban gayi. Downloads mein save hui hai ya nahi check kar lein." });
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Backup nahi ban paaya", variant: "destructive" });
+    }
   };
 
   // ── Restore (import JSON) ──
@@ -101,8 +150,11 @@ export default function Settings() {
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string);
-        if (!data.version || !data.records) {
-          toast({ title: "Invalid backup file", variant: "destructive" }); return;
+        if (!data.version || !Array.isArray(data.records) ||
+            (data.customers !== undefined && !Array.isArray(data.customers)) ||
+            (data.transactions !== undefined && !Array.isArray(data.transactions)) ||
+            (data.settings !== undefined && (!data.settings || typeof data.settings !== "object" || Array.isArray(data.settings)))) {
+          toast({ title: "Yeh Chakki Manager backup JSON nahi hai", variant: "destructive" }); return;
         }
         if (!confirm("Restore karein? Current data replace ho jayega.")) return;
         const restored = [
@@ -116,6 +168,14 @@ export default function Settings() {
           const json = JSON.stringify(value);
           localStorage.setItem(key, json);
           window.dispatchEvent(new StorageEvent("storage", { key, newValue: json }));
+        }
+        if (typeof data.shopCode === "string" && data.shopCode.trim()) {
+          localStorage.setItem("chakki_shop_code", data.shopCode.trim().toUpperCase());
+          // Keep the restored local records and merge them to the cloud on next launch.
+          localStorage.setItem("chakki_restore_pending_sync", "1");
+        }
+        if (typeof data.apiServerUrl === "string" && data.apiServerUrl.trim()) {
+          localStorage.setItem("chakki_api_server_url", data.apiServerUrl.trim());
         }
         toast({ title: "✅ Data restore ho gaya! Page reload ho raha hai..." });
         setTimeout(() => window.location.reload(), 1500);
@@ -238,7 +298,38 @@ export default function Settings() {
           </label>
         </div>
         <p className="text-xs text-muted-foreground bg-secondary/40 rounded-xl p-3">
-          💡 Backup = JSON file download hogi. Restore karne ke liye wahi file select karein.
+          💡 App uninstall karne se phone ka local data mit sakta hai. Uninstall/update se pehle backup file ko Downloads ya Google Drive mein save karein. Restore ke baad, agar backup mein shop code hai, app data ko sync server se merge karne ki koshish karegi.
+        </p>
+      </div>
+
+      {/* ── Sync API server URL ── */}
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-3">
+        <div>
+          <h3 className="text-lg font-bold">🌐 Sync Server URL</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Installed APK ko live Replit server ka HTTPS address chahiye. Sirf website ka HTML page nahi, usi host par /api/health JSON chalna chahiye.
+          </p>
+        </div>
+        <Input
+          value={serverUrlInput}
+          onChange={(e) => setServerUrlInput(e.target.value)}
+          placeholder="https://aapka-app.replit.app"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          className="h-12 text-sm"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <Button onClick={handleSaveApiServer} variant="outline" className="h-11 rounded-xl">
+            Server URL Save
+          </Button>
+          <Button onClick={handleTestApiServer} disabled={isTestingServer} className="h-11 rounded-xl">
+            {isTestingServer ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : null}
+            {isTestingServer ? "Testing..." : "Test Connection"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          URL save karne ke baad Test Connection dabayein. Test green aaye tabhi Multi-Device Sync connect karein.
         </p>
       </div>
 
