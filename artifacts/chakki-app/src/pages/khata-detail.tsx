@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useKhata } from "@/hooks/use-khata";
 import { useSettings } from "@/hooks/use-settings";
+import { useRecords } from "@/hooks/use-records";
+import { englishNameToHindi } from "@/lib/english-name-to-hindi";
 import { KhataTransaction } from "@/lib/types";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
@@ -164,6 +166,7 @@ export default function KhataDetail() {
     getBalance, getCustomerTransactions,
   } = useKhata();
   const { rates } = useSettings();
+  const { records } = useRecords();
   const { toast } = useToast();
 
   const [mode, setMode] = useState<Mode>("none");
@@ -189,6 +192,17 @@ export default function KhataDetail() {
 
   const balance = getBalance(id!);
   const txList = getCustomerTransactions(id!);
+  const customerMobile = (customer.mobile || "").replace(/\\D/g, "");
+  const normalizedCustomerName = customer.name.trim().normalize("NFC").toLowerCase().replace(/\\s+/g, " ");
+  const matchingRecords = records.filter((record) => {
+    const recordMobile = (record.mobile || "").replace(/\\D/g, "");
+    const normalizedRecordName = record.customerName.trim().normalize("NFC").toLowerCase().replace(/\\s+/g, " ");
+    if (customerMobile && recordMobile) return customerMobile === recordMobile;
+    return normalizedRecordName === normalizedCustomerName;
+  }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const profilePhoto = matchingRecords.find((record) => record.photo)?.photo || txList.find((transaction) => transaction.photo)?.photo;
+  const profileHindiName = matchingRecords.find((record) => record.customerNameHindi?.trim() && /[\\u0900-\\u097F]/.test(record.customerNameHindi))?.customerNameHindi?.trim() || englishNameToHindi(customer.name);
+  const villageHindiName = customer.village ? englishNameToHindi(customer.village) : "";
 
   // Rate is integer
   const activeRate = parseInt(manualRate, 10) || Math.round(rates[anaj]) || 0;
@@ -293,20 +307,36 @@ export default function KhataDetail() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
-      {/* Back + header */}
+      {/* Back + customer profile */}
       <div className="flex items-center gap-3">
-        <button onClick={() => setLocation("/khata")} className="bg-secondary p-2.5 rounded-xl hover:bg-secondary/80 transition-colors">
+        <button onClick={() => setLocation("/khata")} className="bg-secondary p-2.5 rounded-xl hover:bg-secondary/80 transition-colors flex-shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </button>
+        {profilePhoto ? (
+          <img src={profilePhoto} alt={`${customer.name} customer`} className="w-12 h-12 rounded-full object-cover border border-border flex-shrink-0" />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-secondary text-muted-foreground flex items-center justify-center flex-shrink-0" aria-label="Customer photo not added">
+            <span className="text-base font-bold">{customer.name.slice(0, 1).toLocaleUpperCase()}</span>
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-bold truncate">{customer.name}</h2>
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+          {profileHindiName && <p className="text-sm font-semibold text-muted-foreground leading-tight mt-0.5">{profileHindiName}</p>}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
             {customer.mobile && <span className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{customer.mobile}</span>}
-            {customer.village && <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{customer.village}</span>}
+            {customer.village && (
+              <span className="text-xs text-muted-foreground flex items-start gap-1">
+                <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                <span className="flex flex-col leading-tight">
+                  <span>{customer.village}</span>
+                  {villageHindiName && <span className="text-[11px] mt-0.5">{villageHindiName}</span>}
+                </span>
+              </span>
+            )}
           </div>
         </div>
         {customer.mobile && (
-          <button onClick={sendWhatsAppStatement} className="bg-[#25D366]/10 text-[#25D366] p-2.5 rounded-xl hover:bg-[#25D366]/20 transition-colors">
+          <button onClick={sendWhatsAppStatement} className="bg-[#25D366]/10 text-[#25D366] p-2.5 rounded-xl hover:bg-[#25D366]/20 transition-colors flex-shrink-0">
             {WA_ICON}
           </button>
         )}
