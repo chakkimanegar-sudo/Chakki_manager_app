@@ -11,7 +11,7 @@ const RESTORE_PENDING_SYNC_KEY = "chakki_restore_pending_sync";
 function getApiBase(): string {
   const configured = localStorage.getItem(API_SERVER_URL_KEY)?.trim();
   if (configured) {
-    const base = configured.replace(/\\/+$/, "");
+    const base = configured.replace(/\/+$/, "");
     return base.endsWith("/api") ? base : `${base}/api`;
   }
 
@@ -48,7 +48,7 @@ async function requestApiJSON<T>(
   let parsed: unknown;
 
   if (!contentType.toLowerCase().includes("application/json")) {
-    if (/^\\s*<!doctype html/i.test(raw) || /^\\s*<html/i.test(raw) || raw.includes("<!DOCTYPE")) {
+    if (/^\s*<!doctype html/i.test(raw) || /^\s*<html/i.test(raw) || raw.includes("<!DOCTYPE")) {
       throw new Error(
         "Sync server ne JSON ki jagah HTML page bheja. APK mein sahi published Replit URL set karein aur dekhein ki us URL par /api/health chal raha hai.",
       );
@@ -84,7 +84,7 @@ export function validateApiServerUrl(value: string): { success: boolean; value?:
     if (url.search || url.hash) {
       return { success: false, error: "URL mein ? ya # ke baad text nahi hona chahiye." };
     }
-    const base = url.origin + url.pathname.replace(/\\/+$/, "");
+    const base = url.origin + url.pathname.replace(/\/+$/, "");
     return { success: true, value: base };
   } catch {
     return { success: false, error: "Sahi server URL daalein, jaise https://aapka-app.replit.app" };
