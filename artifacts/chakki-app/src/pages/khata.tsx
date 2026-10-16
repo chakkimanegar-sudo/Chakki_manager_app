@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { UserPlus, ChevronRight, Phone, BookOpen, Scale, Wallet, Search, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { englishNameToHindi } from "@/lib/english-name-to-hindi";
 
 const WA_ICON = (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
@@ -203,7 +204,7 @@ export default function Khata() {
               return normalizedRecordName === normalizedCustomerName;
             }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
             const profilePhoto = matchingRecords.find((r) => r.photo)?.photo;
-            const profileHindiName = matchingRecords.find((r) => r.customerNameHindi?.trim())?.customerNameHindi?.trim();
+            const profileHindiName = matchingRecords.find((r) => r.customerNameHindi?.trim())?.customerNameHindi?.trim() || englishNameToHindi(c.name);
 
             return (
               <div
