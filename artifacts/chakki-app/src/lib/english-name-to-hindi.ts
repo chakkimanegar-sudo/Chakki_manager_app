@@ -66,6 +66,8 @@ export function englishNameToHindi(name: string): string {
     // Preserve recognizable phonetic forms for frequently used name spellings.
     const common: Record<string, string> = {
       kanha: "कान्हा", kanhaa: "कान्हा", khan: "खान", kher: "खेर",
+      bhamal: "भामल", bhopal: "भोपाल", sikar: "सीकर", jaipur: "जयपुर",
+      indore: "इंदौर", delhi: "दिल्ली", neem: "नीम", thane: "ठाणे",
       ramesh: "रमेश", suresh: "सुरेश", mahesh: "महेश",
       mohan: "मोहन", rohan: "रोहन", rahul: "राहुल", amit: "अमित",
       sumit: "सुमित", anil: "अनिल", sunil: "सुनील", rajesh: "राजेश",
