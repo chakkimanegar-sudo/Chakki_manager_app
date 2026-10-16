@@ -250,9 +250,9 @@ export default function AddRecord() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customerName.trim()) {
+    if (!customerName.trim() && !photo) {
       toast({
-        title: "Grahak ka naam zaroori hai",
+        title: "Grahak ka naam likhein ya photo khinchein",
         variant: "destructive",
       });
       return;
@@ -303,8 +303,12 @@ export default function AddRecord() {
       return;
     }
 
+    // A photo-only entry still needs a non-empty internal label for cards and Khata bookkeeping.
+    // A unique label prevents unidentified customers from being accidentally merged together.
+    const savedCustomerName = customerName.trim() || `Photo Grahak ${Date.now()}`;
+
     const payload = {
-      customerName: customerName.trim(),
+      customerName: savedCustomerName,
       customerNameHindi: customerNameHindi.trim(),
       mobile: mobileDigits,
       village: village.trim(),
@@ -330,7 +334,7 @@ export default function AddRecord() {
         if (paymentType === "udhar") {
           const { customer } =
             findOrCreateCustomer(
-              customerName.trim(),
+              savedCustomerName,
               mobileDigits,
               village.trim()
             );
@@ -393,7 +397,7 @@ export default function AddRecord() {
         if (paymentType === "udhar") {
           const { customer, isNew } =
             findOrCreateCustomer(
-              customerName.trim(),
+              savedCustomerName,
               mobileDigits,
               village.trim()
             );
@@ -463,18 +467,17 @@ export default function AddRecord() {
             htmlFor="customerName"
             className="text-base font-semibold"
           >
-            👤 Grahak ka Naam *
+            👤 Grahak ka Naam (Optional)
           </Label>
 
           <Input
             id="customerName"
-            placeholder="Jaise: Ram Kumar, Sita Devi..."
+            placeholder="Naam likhein (photo se bhi save kar sakte hain)"
             value={customerName}
             onChange={(e) =>
               setCustomerName(e.target.value)
             }
             className="h-14 text-base"
-            required
           />
         </div>
 
