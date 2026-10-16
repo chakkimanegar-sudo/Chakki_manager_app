@@ -250,6 +250,23 @@ export default function KhataDetail() {
     setKg(""); setAmount(""); setNotes(""); setRateError("");
   };
 
+  const handleFullPayment = () => {
+    if (balance <= 0) return;
+    const amountToSettle = Math.round(balance * 100) / 100;
+    if (!confirm(`${customer.name} se poora baaki ₹${amountToSettle.toLocaleString("en-IN")} mil gaya? Isse ek payment entry banegi aur purana udhar history mein rahega.`)) {
+      return;
+    }
+
+    addTransaction({
+      customerId: id!,
+      type: "payment",
+      amount: amountToSettle,
+      date: format(new Date(), "yyyy-MM-dd"),
+      notes: "Pura baaki payment",
+    });
+    toast({ title: `✅ Pura payment darj hua: ₹${amountToSettle.toLocaleString("en-IN")}` });
+  };
+
   const handleDelete = (txId: string) => {
     if (confirm("Is transaction ko delete karein?")) {
       const deleted = deleteTransaction(txId);
@@ -340,6 +357,15 @@ export default function KhataDetail() {
             <Minus className="w-5 h-5" /> Paisa Mila
           </button>
         </div>
+      )}
+
+      {mode === "none" && balance > 0 && (
+        <button
+          onClick={handleFullPayment}
+          className="w-full flex items-center justify-center gap-2 h-12 bg-green-600 text-white rounded-2xl font-bold text-sm transition-all hover:bg-green-700"
+        >
+          <Check className="w-5 h-5" /> Pura Payment Mila — ₹{balance.toLocaleString("en-IN")}
+        </button>
       )}
 
       {/* Add form */}
