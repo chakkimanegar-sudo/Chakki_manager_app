@@ -78,7 +78,135 @@ export default function AddRecord() {
   // 📸 Customer photo
   const [photo, setPhoto] = useState<string>("");
 
-  // 📸 Photo select
+  // Use the in-page camera instead of Android's native camera intent.
+  // Some Android browsers fail when returning a full-resolution photo to a web page.
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraRequestId = useRef(0);
+
+  const closeCamera = () => {
+    cameraRequestId.current += 1;
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+    setCameraOpen(false);
+    setCameraError("");
+  };
+
+  const startCamera = async () => {
+    setCameraError("");
+    setCameraOpen(true);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Is browser mein in-page camera available nahi hai. Camera permission check karein ya Gallery se photo lein.");
+      return;
+    }
+
+    const requestId = ++cameraRequestId.current;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 1280 },
+        },
+      });
+
+      if (requestId !== cameraRequestId.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      setCameraStream(stream);
+    } catch (error) {
+      if (requestId !== cameraRequestId.current) return;
+      console.error("In-page camera could not start", error);
+      setCameraError("Camera nahi khul paaya. Browser settings mein Camera permission allow karein, ya Gallery se photo lein.");
+    }
+  };
+
+  useEffect(() => {
+    if (!cameraStream) return;
+
+    const video = videoRef.current;
+    if (video) {
+      video.srcObject = cameraStream;
+      void video.play().catch((error) => {
+        console.error("Camera preview could not start", error);
+        setCameraError("Camera preview nahi chal paaya. Dobara koshish karein.");
+      });
+    }
+
+    return () => {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      if (video) video.srcObject = null;
+    };
+  }, [cameraStream]);
+
+  const captureCameraPhoto = async () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      toast({
+        title: "Camera taiyar nahi hai. Ek second baad dobara dabayein.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let canvas: HTMLCanvasElement | undefined;
+    try {
+      const maxSide = 1280;
+      const scale = Math.min(
+        1,
+        maxSide / Math.max(video.videoWidth, video.videoHeight)
+      );
+      const width = Math.max(1, Math.round(video.videoWidth * scale));
+      const height = Math.max(1, Math.round(video.videoHeight * scale));
+
+      canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Photo process nahi ho paayi");
+
+      context.drawImage(video, 0, 0, width, height);
+
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas!.toBlob(resolve, "image/jpeg", 0.72);
+      });
+      if (!blob) throw new Error("Photo compress nahi ho paayi");
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") resolve(reader.result);
+          else reject(new Error("Photo read nahi ho paayi"));
+        };
+        reader.onerror = () => reject(new Error("Photo read nahi ho paayi"));
+        reader.readAsDataURL(blob);
+      });
+
+      setPhoto(dataUrl);
+      closeCamera();
+      toast({ title: "✅ Photo aa gayi!" });
+    } catch (error) {
+      console.error("In-page photo capture failed", error);
+      toast({
+        title: "Photo save nahi ho paayi. Dobara koshish karein.",
+        variant: "destructive",
+      });
+    } finally {
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+    }
+  };
+
+  // 📸 Gallery photo select
   const handlePhotoChange = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -593,23 +721,15 @@ export default function AddRecord() {
           {!photo ? (
             <div className="grid grid-cols-2 gap-3">
 
-              {/* Camera */}
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handlePhotoChange}
-                />
-
-                <div className="h-14 rounded-2xl border-2 border-dashed border-border flex items-center justify-center gap-2 hover:bg-secondary/50 transition-colors">
-                  <Camera className="w-5 h-5" />
-                  <span className="font-semibold">
-                    Camera
-                  </span>
-                </div>
-              </label>
+              {/* Camera: capture a small image directly in the page, avoiding Android's full-size file return. */}
+              <button
+                type="button"
+                onClick={startCamera}
+                className="h-14 rounded-2xl border-2 border-dashed border-border flex items-center justify-center gap-2 hover:bg-secondary/50 transition-colors"
+              >
+                <Camera className="w-5 h-5" />
+                <span className="font-semibold">Camera</span>
+              </button>
 
               {/* Gallery */}
               <label className="cursor-pointer">
@@ -895,6 +1015,77 @@ export default function AddRecord() {
         </Button>
 
       </form>
+
+      {cameraOpen && (
+        <div className="fixed inset-0 z-[100] flex flex-col bg-black p-4 text-white">
+          <div className="flex items-center justify-between gap-3 pb-3">
+            <div>
+              <h3 className="text-lg font-bold">Grahak ka Photo</h3>
+              <p className="text-xs text-white/70">Photo app ke andar hi capture hogi</p>
+            </div>
+            <button
+              type="button"
+              onClick={closeCamera}
+              className="rounded-full bg-white/15 p-3"
+              aria-label="Camera band karein"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {cameraError ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+              <Camera className="h-12 w-12 text-white/70" />
+              <p className="max-w-sm text-sm">{cameraError}</p>
+              <button
+                type="button"
+                onClick={closeCamera}
+                className="rounded-xl bg-white px-5 py-3 font-bold text-black"
+              >
+                Wapas jaayein
+              </button>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl bg-zinc-900">
+              {cameraStream ? (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="h-full w-full object-contain"
+                  aria-label="Camera preview"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-3 text-center text-white/80">
+                  <Camera className="h-10 w-10 animate-pulse" />
+                  <p>Camera khul raha hai...</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!cameraError && (
+            <div className="flex items-center justify-center gap-4 pt-4">
+              <button
+                type="button"
+                onClick={closeCamera}
+                className="rounded-xl border border-white/40 px-5 py-3 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={captureCameraPhoto}
+                disabled={!cameraStream}
+                className="rounded-xl bg-orange-500 px-6 py-3 font-bold text-white disabled:opacity-50"
+              >
+                📸 Photo Khichein
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
