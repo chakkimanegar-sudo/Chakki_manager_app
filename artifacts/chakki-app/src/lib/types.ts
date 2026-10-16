@@ -1,8 +1,10 @@
 export type RecordEntry = {
   id: string;
   customerName: string;
+  customerNameHindi?: string;
   mobile: string;
   village?: string;
+  photo?: string;
   photo?: string;
   anaj: string;
   kg: number;
