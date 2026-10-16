@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { useRecords } from "@/hooks/use-records";
 import { useSettings } from "@/hooks/use-settings";
@@ -56,6 +56,8 @@ export default function AddRecord() {
   const isEdit = !!id;
 
   const [customerName, setCustomerName] = useState("");
+  const [customerNameHindi, setCustomerNameHindi] = useState("");
+  const autoFilledHindiName = useRef("");
   const [mobile, setMobile] = useState("");
   const [village, setVillage] = useState("");
   const [anaj, setAnaj] = useState("Gehu");
@@ -147,6 +149,35 @@ export default function AddRecord() {
     }
   }, [anaj, rates, settingsLoaded, isEdit]);
 
+  // Reuse a customer's saved Hindi name on future entries.
+  // Matching uses mobile when both sides have one, otherwise the normalized name.
+  useEffect(() => {
+    if (isEdit) return;
+
+    const nameKey = customerName.trim().normalize("NFC").toLowerCase().replace(/\s+/g, " ");
+    if (!nameKey) return;
+
+    const mobileDigits = mobile.replace(/\D/g, "");
+    const previous = [...records]
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .find((record) => {
+        const recordMobile = (record.mobile || "").replace(/\D/g, "");
+        const recordName = record.customerName.trim().normalize("NFC").toLowerCase().replace(/\s+/g, " ");
+        if (mobileDigits && recordMobile) return mobileDigits === recordMobile;
+        return recordName === nameKey;
+      });
+
+    const previousHindiName = previous?.customerNameHindi?.trim() || "";
+    if (previousHindiName) {
+      autoFilledHindiName.current = previousHindiName;
+      setCustomerNameHindi(previousHindiName);
+    } else if (autoFilledHindiName.current) {
+      const oldAutoFilledName = autoFilledHindiName.current;
+      autoFilledHindiName.current = "";
+      setCustomerNameHindi((current) => current === oldAutoFilledName ? "" : current);
+    }
+  }, [customerName, mobile, records, isEdit]);
+
   // Load existing record
   useEffect(() => {
     if (isEdit && recordsLoaded) {
@@ -154,6 +185,7 @@ export default function AddRecord() {
 
       if (record) {
         setCustomerName(record.customerName);
+        setCustomerNameHindi(record.customerNameHindi || "");
         setMobile(record.mobile || "");
         setVillage(record.village || "");
         setAnaj(record.anaj);
@@ -273,6 +305,7 @@ export default function AddRecord() {
 
     const payload = {
       customerName: customerName.trim(),
+      customerNameHindi: customerNameHindi.trim(),
       mobile: mobileDigits,
       village: village.trim(),
       anaj,
@@ -443,6 +476,23 @@ export default function AddRecord() {
             className="h-14 text-base"
             required
           />
+        </div>
+
+        {/* Hindi customer name */}
+        <div className="space-y-1.5">
+          <Label htmlFor="customerNameHindi" className="text-base font-semibold">
+            📝 Grahak ka Naam Hindi mein / हिंदी नाम (Optional)
+          </Label>
+          <Input
+            id="customerNameHindi"
+            placeholder="Jaise: राम कुमार, सीता देवी..."
+            value={customerNameHindi}
+            onChange={(e) => setCustomerNameHindi(e.target.value)}
+            className="h-14 text-base"
+          />
+          <p className="text-xs text-muted-foreground">
+            Papa ko pehchanne mein aasani ke liye English naam ke neeche dikhega.
+          </p>
         </div>
 
         {/* Mobile */}

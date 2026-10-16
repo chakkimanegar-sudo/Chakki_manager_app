@@ -1,7 +1,7 @@
 import { RecordEntry } from "@/lib/types";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
-import { Pencil, Trash2, Banknote, BookOpen } from "lucide-react";
+import { Pencil, Trash2, Banknote, BookOpen, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface RecordCardProps {
@@ -66,19 +66,36 @@ export function RecordCard({ record, onEdit, onDelete }: RecordCardProps) {
   return (
     <Card className={`border ${isUdhar ? "border-red-200 bg-red-50/30 dark:border-red-900/40 dark:bg-red-950/20" : "border-border bg-card"} rounded-2xl shadow-sm overflow-hidden`}>
       <CardContent className="p-4 space-y-3">
-        {/* Row 1: customer + payment badge */}
+        {/* Row 1: customer photo + bilingual name + payment badge */}
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="font-bold text-foreground text-base leading-tight truncate">{record.customerName}</p>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              {record.mobile && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  📞 {record.mobile}
-                </span>
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {record.photo ? (
+              <img
+                src={record.photo}
+                alt={`${record.customerName} customer`}
+                className="w-14 h-14 rounded-full object-cover border border-border flex-shrink-0"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-secondary text-muted-foreground flex items-center justify-center flex-shrink-0" aria-label="Customer photo not added">
+                <UserRound className="w-6 h-6" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-foreground text-base leading-tight break-words">{record.customerName}</p>
+              {record.customerNameHindi?.trim() && (
+                <p className="text-sm font-semibold text-muted-foreground leading-tight mt-0.5">{record.customerNameHindi.trim()}</p>
               )}
-              {record.village && (
-                <span className="text-xs text-muted-foreground">🏘️ {record.village}</span>
-              )}
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {record.mobile && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    📞 {record.mobile}
+                  </span>
+                )}
+                {record.village && (
+                  <span className="text-xs text-muted-foreground">🏘️ {record.village}</span>
+                )}
+              </div>
             </div>
           </div>
           <div className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${isUdhar ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"}`}>
