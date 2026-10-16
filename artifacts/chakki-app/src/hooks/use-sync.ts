@@ -73,7 +73,7 @@ async function requestApiJSON<T>(
 }
 
 export function validateApiServerUrl(value: string): { success: boolean; value?: string; error?: string } {
-  const trimmed = value.trim().replace(/\\/+$/, "");
+  const trimmed = value.trim().replace(/\/+$/, "");
   if (!trimmed) return { success: true, value: "" };
 
   try {
