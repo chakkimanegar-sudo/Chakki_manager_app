@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { useRecords } from "@/hooks/use-records";
 import { useSettings } from "@/hooks/use-settings";
@@ -57,6 +57,7 @@ export default function AddRecord() {
 
   const [customerName, setCustomerName] = useState("");
   const [customerNameHindi, setCustomerNameHindi] = useState("");
+  const autoFilledHindiName = useRef("");
   const [mobile, setMobile] = useState("");
   const [village, setVillage] = useState("");
   const [anaj, setAnaj] = useState("Gehu");
@@ -153,21 +154,27 @@ export default function AddRecord() {
   useEffect(() => {
     if (isEdit) return;
 
-    const nameKey = customerName.trim().normalize("NFC").toLowerCase().replace(/\\s+/g, " ");
+    const nameKey = customerName.trim().normalize("NFC").toLowerCase().replace(/\s+/g, " ");
     if (!nameKey) return;
 
-    const mobileDigits = mobile.replace(/\\D/g, "");
+    const mobileDigits = mobile.replace(/\D/g, "");
     const previous = [...records]
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
       .find((record) => {
-        const recordMobile = (record.mobile || "").replace(/\\D/g, "");
-        const recordName = record.customerName.trim().normalize("NFC").toLowerCase().replace(/\\s+/g, " ");
+        const recordMobile = (record.mobile || "").replace(/\D/g, "");
+        const recordName = record.customerName.trim().normalize("NFC").toLowerCase().replace(/\s+/g, " ");
         if (mobileDigits && recordMobile) return mobileDigits === recordMobile;
         return recordName === nameKey;
       });
 
-    if (previous?.customerNameHindi?.trim()) {
-      setCustomerNameHindi(previous.customerNameHindi.trim());
+    const previousHindiName = previous?.customerNameHindi?.trim() || "";
+    if (previousHindiName) {
+      autoFilledHindiName.current = previousHindiName;
+      setCustomerNameHindi(previousHindiName);
+    } else if (autoFilledHindiName.current) {
+      const oldAutoFilledName = autoFilledHindiName.current;
+      autoFilledHindiName.current = "";
+      setCustomerNameHindi((current) => current === oldAutoFilledName ? "" : current);
     }
   }, [customerName, mobile, records, isEdit]);
 
