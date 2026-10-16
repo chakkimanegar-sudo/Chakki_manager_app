@@ -5,7 +5,90 @@ const LAST_SYNC_KEY = "chakki_last_sync";
 const LAST_SERVER_AT_KEY = "chakki_last_server_at";
 const LAST_SERVER_SNAPSHOT_KEY = "chakki_last_server_snapshot";
 
-const API_BASE = "/api";
+const API_SERVER_URL_KEY = "chakki_api_server_url";
+
+function getApiBase(): string {
+  const configured = localStorage.getItem(API_SERVER_URL_KEY)?.trim();
+  if (configured) {
+    const base = configured.replace(/\\/+$/, "");
+    return base.endsWith("/api") ? base : `${base}/api`;
+  }
+
+  const native = (window as unknown as {
+    Capacitor?: { isNativePlatform?: () => boolean };
+  }).Capacitor?.isNativePlatform?.();
+  const nativeLocalOrigin =
+    ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+    !window.location.port;
+
+  if (native || nativeLocalOrigin) {
+    throw new Error(
+      "APK ka Sync Server URL set nahi hai. Pehle Settings mein apne published Replit app ka HTTPS URL save karein.",
+    );
+  }
+
+  return "/api";
+}
+
+async function requestApiJSON<T>(
+  url: string,
+  init: RequestInit | undefined,
+  action: string,
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, { cache: "no-store", ...init });
+  } catch {
+    throw new Error("Sync server se connection nahi ho pa raha. Internet aur server URL check karein.");
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const raw = await response.text();
+  let parsed: unknown;
+
+  if (!contentType.toLowerCase().includes("application/json")) {
+    if (/^\\s*<!doctype html/i.test(raw) || /^\\s*<html/i.test(raw) || raw.includes("<!DOCTYPE")) {
+      throw new Error(
+        "Sync server ne JSON ki jagah HTML page bheja. APK mein sahi published Replit URL set karein aur dekhein ki us URL par /api/health chal raha hai.",
+      );
+    }
+    throw new Error("Sync server ka jawab JSON nahi hai. Server URL aur deployment check karein.");
+  }
+
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Sync server ka JSON jawab galat hai. Server deployment check karein.");
+  }
+
+  if (!response.ok) {
+    const body = parsed && typeof parsed === "object"
+      ? parsed as { error?: string }
+      : {};
+    throw new Error(body.error || `${action} fail hua (HTTP ${response.status})`);
+  }
+
+  return parsed as T;
+}
+
+export function validateApiServerUrl(value: string): { success: boolean; value?: string; error?: string } {
+  const trimmed = value.trim().replace(/\\/+$/, "");
+  if (!trimmed) return { success: true, value: "" };
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) {
+      return { success: false, error: "Server URL HTTPS hona chahiye." };
+    }
+    if (url.search || url.hash) {
+      return { success: false, error: "URL mein ? ya # ke baad text nahi hona chahiye." };
+    }
+    const base = url.origin + url.pathname.replace(/\\/+$/, "");
+    return { success: true, value: base };
+  } catch {
+    return { success: false, error: "Sahi server URL daalein, jaise https://aapka-app.replit.app" };
+  }
+}
 
 const LS_RECORDS = "chakki_records";
 const LS_CUSTOMERS = "khata_customers";
@@ -195,33 +278,20 @@ function saveLastServerSnapshot(snapshot: Snapshot) {
 
 async function apiJoinShop(code: string): Promise<{
   id: string; code: string; name: string; isNew: boolean;
-} | null> {
-  try {
-    const res = await fetch(`${API_BASE}/shop`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: code.toUpperCase() }),
-    });
-    if (!res.ok) {
-      let message = `Server error (${res.status})`;
-      try {
-        const body = await res.json() as { error?: string };
-        if (body?.error) message = body.error;
-      } catch {}
-      throw new Error(message);
-    }
-    return res.json();
-  } catch {
-    return null;
-  }
+}> {
+  return requestApiJSON(`${getApiBase()}/shop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: code.toUpperCase() }),
+  }, "Shop connect");
 }
 
 async function apiGetData(code: string): Promise<ServerResponse> {
-  const res = await fetch(`${API_BASE}/shop/${code.toUpperCase()}/data`, {
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error("Unable to fetch shop data");
-  return res.json();
+  return requestApiJSON(
+    `${getApiBase()}/shop/${code.toUpperCase()}/data`,
+    undefined,
+    "Data fetch",
+  );
 }
 
 async function apiPushData(
@@ -229,13 +299,15 @@ async function apiPushData(
   snapshot: Snapshot,
   base: Snapshot,
 ): Promise<ServerResponse> {
-  const res = await fetch(`${API_BASE}/shop/${code.toUpperCase()}/data`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...snapshot, base }),
-  });
-  if (!res.ok) throw new Error("Push failed");
-  return res.json();
+  return requestApiJSON(
+    `${getApiBase()}/shop/${code.toUpperCase()}/data`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...snapshot, base }),
+    },
+    "Data sync",
+  );
 }
 
 function markSynced(updatedAt: string) {
@@ -257,6 +329,34 @@ export function useSync() {
   const [lastSyncTime, setLastSyncTime] = useState<string>(
     () => localStorage.getItem(LAST_SYNC_KEY) ?? "",
   );
+  const [apiServerUrl, setApiServerUrlState] = useState<string>(
+    () => localStorage.getItem(API_SERVER_URL_KEY) ?? "",
+  );
+
+  const saveApiServerUrl = useCallback((value: string) => {
+    const result = validateApiServerUrl(value);
+    if (!result.success) return result;
+    if (result.value) localStorage.setItem(API_SERVER_URL_KEY, result.value);
+    else localStorage.removeItem(API_SERVER_URL_KEY);
+    setApiServerUrlState(result.value ?? "");
+    return { success: true };
+  }, []);
+
+  const testApiConnection = useCallback(async () => {
+    try {
+      const health = await requestApiJSON<{ status?: string }>(
+        `${getApiBase()}/health`,
+        undefined,
+        "Server check",
+      );
+      if (health.status !== "ok") {
+        return { success: false, error: "Server chal raha hai, lekin health response sahi nahi hai." };
+      }
+      return { success: true, error: "" };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Server se connection nahi hua." };
+    }
+  }, []);
 
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pushInFlightRef = useRef<Promise<boolean> | null>(null);
@@ -495,5 +595,9 @@ export function useSync() {
     setSyncStatus("not-setup");
   }, []);
 
-  return { shopCode, syncStatus, lastSyncTime, setupShop, syncNow, disconnectShop };
+  return {
+    shopCode, syncStatus, lastSyncTime,
+    apiServerUrl, saveApiServerUrl, testApiConnection,
+    setupShop, syncNow, disconnectShop,
+  };
 }
