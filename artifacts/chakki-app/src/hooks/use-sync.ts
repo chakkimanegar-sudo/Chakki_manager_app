@@ -342,6 +342,7 @@ export function useSync() {
   const [lastSyncTime, setLastSyncTime] = useState<string>(
     () => localStorage.getItem(LAST_SYNC_KEY) ?? "",
   );
+  const [syncError, setSyncError] = useState<string>("");
   const [apiServerUrl, setApiServerUrlState] = useState<string>(
     () => localStorage.getItem(API_SERVER_URL_KEY) ?? "",
   );
@@ -441,8 +442,9 @@ export function useSync() {
       const timeStr = markSynced(data.updatedAt);
       setLastSyncTime(timeStr);
       setSyncStatus("synced");
-    } catch {
+    } catch (error) {
       isSyncApplyingRef.current = false;
+      setSyncError(error instanceof Error ? error.message : "Sync fail hua. Server URL aur database check karein.");
       setSyncStatus("error");
     }
   }, []);
@@ -501,8 +503,9 @@ export function useSync() {
         }
 
         return true;
-      } catch {
+      } catch (error) {
         isSyncApplyingRef.current = false;
+        setSyncError(error instanceof Error ? error.message : "Sync fail hua. Server URL aur database check karein.");
         setSyncStatus("error");
         return false;
       }
@@ -627,7 +630,7 @@ export function useSync() {
   }, []);
 
   return {
-    shopCode, syncStatus, lastSyncTime,
+    shopCode, syncStatus, lastSyncTime, syncError,
     apiServerUrl, saveApiServerUrl, testApiConnection,
     setupShop, syncNow, disconnectShop,
   };
