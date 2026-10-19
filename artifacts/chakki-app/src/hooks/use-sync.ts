@@ -11,7 +11,11 @@ const RESTORE_PENDING_SYNC_KEY = "chakki_restore_pending_sync";
 // Local development still uses Vite's /api proxy; hosted web clients use Render.
 const DEFAULT_SYNC_API_ORIGIN = "https://chakki-manager-api.onrender.com";
 
-function getApiBase(): string {
+function readConfiguredApiServerUrl(): string {
+  const configured = localStorage.getItem(API_SERVER_URL_KEY)?.trim() ?? "";
+  if (!configured) return "";
+
+  const base = configured.replace(/\/+$/, "");
   const isLoopbackHost = ["localhost", "127.0.0.1"].includes(
     window.location.hostname.toLowerCase(),
   );
@@ -19,31 +23,42 @@ function getApiBase(): string {
     Capacitor?: { isNativePlatform?: () => boolean };
   }).Capacitor?.isNativePlatform?.();
 
-  const configured = localStorage.getItem(API_SERVER_URL_KEY)?.trim();
+  let configuredOrigin = "";
+  try {
+    configuredOrigin = new URL(base).origin;
+  } catch {
+    // Keep malformed explicit settings visible so connection tests can report
+    // the issue instead of silently picking a different server.
+  }
+
+  // Older builds cached the website's own origin after a successful /api
+  // request. On a hosted browser, that value can point to the wrong database.
+  if (
+    !native &&
+    !isLoopbackHost &&
+    configuredOrigin === window.location.origin &&
+    configuredOrigin !== DEFAULT_SYNC_API_ORIGIN
+  ) {
+    localStorage.removeItem(API_SERVER_URL_KEY);
+    return "";
+  }
+
+  return configured;
+}
+
+function getApiBase(): string {
+  const configured = readConfiguredApiServerUrl();
   if (configured) {
     const base = configured.replace(/\/+$/, "");
-    let configuredOrigin = "";
-    try {
-      configuredOrigin = new URL(base).origin;
-    } catch {
-      // Keep the explicit value below so malformed settings produce a clear
-      // connection error instead of silently sending data to another server.
-    }
-
-    // Older versions stored the website's own origin after a successful /api
-    // request. That can strand a browser on the wrong database after the
-    // shared cloud API is configured. Migrate that legacy value automatically.
-    if (
-      !native &&
-      !isLoopbackHost &&
-      configuredOrigin === window.location.origin &&
-      configuredOrigin !== DEFAULT_SYNC_API_ORIGIN
-    ) {
-      localStorage.removeItem(API_SERVER_URL_KEY);
-    } else {
-      return base.endsWith("/api") ? base : `${base}/api`;
-    }
+    return base.endsWith("/api") ? base : `${base}/api`;
   }
+
+  const isLoopbackHost = ["localhost", "127.0.0.1"].includes(
+    window.location.hostname.toLowerCase(),
+  );
+  const native = (window as unknown as {
+    Capacitor?: { isNativePlatform?: () => boolean };
+  }).Capacitor?.isNativePlatform?.();
 
   const nativeLocalOrigin = isLoopbackHost && !window.location.port;
   if (native || nativeLocalOrigin) {
@@ -358,16 +373,40 @@ export function useSync() {
   );
   const [syncError, setSyncError] = useState<string>("");
   const [apiServerUrl, setApiServerUrlState] = useState<string>(
-    () => localStorage.getItem(API_SERVER_URL_KEY) ?? "",
+    () => readConfiguredApiServerUrl(),
   );
 
   const saveApiServerUrl = useCallback((value: string) => {
     const result = validateApiServerUrl(value);
     if (!result.success) return result;
-    if (result.value) localStorage.setItem(API_SERVER_URL_KEY, result.value);
+
+    let valueToSave = result.value ?? "";
+    const isLoopbackHost = ["localhost", "127.0.0.1"].includes(
+      window.location.hostname.toLowerCase(),
+    );
+    const native = (window as unknown as {
+      Capacitor?: { isNativePlatform?: () => boolean };
+    }).Capacitor?.isNativePlatform?.();
+
+    // Keep the hosted browser on the shared API even if an older same-origin
+    // URL is pasted or restored into the settings field.
+    if (valueToSave && !native && !isLoopbackHost) {
+      try {
+        if (
+          new URL(valueToSave).origin === window.location.origin &&
+          window.location.origin !== DEFAULT_SYNC_API_ORIGIN
+        ) {
+          valueToSave = "";
+        }
+      } catch {
+        // validateApiServerUrl has already rejected malformed URLs.
+      }
+    }
+
+    if (valueToSave) localStorage.setItem(API_SERVER_URL_KEY, valueToSave);
     else localStorage.removeItem(API_SERVER_URL_KEY);
-    setApiServerUrlState(result.value ?? "");
-    return { success: true };
+    setApiServerUrlState(valueToSave);
+    return { success: true, value: valueToSave };
   }, []);
 
   const testApiConnection = useCallback(async () => {
