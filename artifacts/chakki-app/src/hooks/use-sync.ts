@@ -12,31 +12,51 @@ const RESTORE_PENDING_SYNC_KEY = "chakki_restore_pending_sync";
 const DEFAULT_SYNC_API_ORIGIN = "https://chakki-manager-api.onrender.com";
 
 function getApiBase(): string {
-  const configured = localStorage.getItem(API_SERVER_URL_KEY)?.trim();
-  if (configured) {
-    const base = configured.replace(/\/+$/, "");
-    return base.endsWith("/api") ? base : `${base}/api`;
-  }
-
+  const isLoopbackHost = ["localhost", "127.0.0.1"].includes(
+    window.location.hostname.toLowerCase(),
+  );
   const native = (window as unknown as {
     Capacitor?: { isNativePlatform?: () => boolean };
   }).Capacitor?.isNativePlatform?.();
-  const isLoopbackHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-  const nativeLocalOrigin = isLoopbackHost && !window.location.port;
 
+  const configured = localStorage.getItem(API_SERVER_URL_KEY)?.trim();
+  if (configured) {
+    const base = configured.replace(/\/+$/, "");
+    let configuredOrigin = "";
+    try {
+      configuredOrigin = new URL(base).origin;
+    } catch {
+      // Keep the explicit value below so malformed settings produce a clear
+      // connection error instead of silently sending data to another server.
+    }
+
+    // Older versions stored the website's own origin after a successful /api
+    // request. That can strand a browser on the wrong database after the
+    // shared cloud API is configured. Migrate that legacy value automatically.
+    if (
+      !native &&
+      !isLoopbackHost &&
+      configuredOrigin === window.location.origin &&
+      configuredOrigin !== DEFAULT_SYNC_API_ORIGIN
+    ) {
+      localStorage.removeItem(API_SERVER_URL_KEY);
+    } else {
+      return base.endsWith("/api") ? base : `${base}/api`;
+    }
+  }
+
+  const nativeLocalOrigin = isLoopbackHost && !window.location.port;
   if (native || nativeLocalOrigin) {
     throw new Error(
       "APK ka Sync Server URL set nahi hai. Settings mein shared sync server ka HTTPS URL save karein.",
     );
   }
 
-  // A deployed website must not accidentally talk to a different app-local
-  // /api instance/database. Route hosted web clients to the same cloud API as
-  // the APK by default. Developers on localhost continue using Vite's proxy.
+  // Local development goes through Vite's API proxy. Hosted web clients use
+  // the same cloud API as the installed APK, rather than a separate /api host.
   if (isLoopbackHost) return "/api";
   return `${DEFAULT_SYNC_API_ORIGIN}/api`;
 }
-
 async function requestApiJSON<T>(
   url: string,
   init: RequestInit | undefined,
@@ -73,18 +93,6 @@ async function requestApiJSON<T>(
       ? parsed as { error?: string }
       : {};
     throw new Error(body.error || `${action} fail hua (HTTP ${response.status})`);
-  }
-
-  // On the hosted web app, a successful same-origin API response reveals the
-  // real HTTPS origin. Keep it in the backup so a restored APK can use it.
-  const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-  if (
-    url.startsWith("/api/") &&
-    !localStorage.getItem(API_SERVER_URL_KEY) &&
-    !isLocalHost &&
-    window.location.protocol === "https:"
-  ) {
-    localStorage.setItem(API_SERVER_URL_KEY, window.location.origin);
   }
 
   return parsed as T;
