@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'artifacts/chakki-app/**'
+      - 'artifacts/api-server/**'
       - 'lib/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -43,6 +44,12 @@ jobs:
 
       - name: Install workspace dependencies
         run: pnpm install --no-frozen-lockfile
+
+      - name: Type-check sync API server
+        run: pnpm --filter @workspace/api-server run typecheck
+
+      - name: Build sync API server
+        run: pnpm --filter @workspace/api-server run build
 
       - name: Test multi-device sync merge invariants
         run: node scripts/test-sync-invariants.mjs
