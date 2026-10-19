@@ -7,6 +7,9 @@ const LAST_SERVER_SNAPSHOT_KEY = "chakki_last_server_snapshot";
 
 const API_SERVER_URL_KEY = "chakki_api_server_url";
 const RESTORE_PENDING_SYNC_KEY = "chakki_restore_pending_sync";
+// Keep the website and installed APK on the same shared sync database.
+// Local development still uses Vite's /api proxy; hosted web clients use Render.
+const DEFAULT_SYNC_API_ORIGIN = "https://chakki-manager-api.onrender.com";
 
 function getApiBase(): string {
   const configured = localStorage.getItem(API_SERVER_URL_KEY)?.trim();
@@ -18,17 +21,20 @@ function getApiBase(): string {
   const native = (window as unknown as {
     Capacitor?: { isNativePlatform?: () => boolean };
   }).Capacitor?.isNativePlatform?.();
-  const nativeLocalOrigin =
-    ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
-    !window.location.port;
+  const isLoopbackHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  const nativeLocalOrigin = isLoopbackHost && !window.location.port;
 
   if (native || nativeLocalOrigin) {
     throw new Error(
-      "APK ka Sync Server URL set nahi hai. Pehle Settings mein apne published Replit app ka HTTPS URL save karein.",
+      "APK ka Sync Server URL set nahi hai. Settings mein shared sync server ka HTTPS URL save karein.",
     );
   }
 
-  return "/api";
+  // A deployed website must not accidentally talk to a different app-local
+  // /api instance/database. Route hosted web clients to the same cloud API as
+  // the APK by default. Developers on localhost continue using Vite's proxy.
+  if (isLoopbackHost) return "/api";
+  return `${DEFAULT_SYNC_API_ORIGIN}/api`;
 }
 
 async function requestApiJSON<T>(
@@ -408,6 +414,7 @@ export function useSync() {
     }
 
     try {
+      setSyncError("");
       setSyncStatus("syncing");
       const data = await apiGetData(code);
       const serverSnapshot: Snapshot = {
@@ -459,6 +466,7 @@ export function useSync() {
       }
 
       try {
+        setSyncError("");
         setSyncStatus("syncing");
 
         const rawSnapshot = getLocalSnapshot();
@@ -557,7 +565,8 @@ export function useSync() {
           } else {
             setSyncStatus("error");
           }
-        } catch {
+        } catch (error) {
+          setSyncError(error instanceof Error ? error.message : "Backup ka data sync nahi ho saka.");
           setSyncStatus("error");
         }
         return;
