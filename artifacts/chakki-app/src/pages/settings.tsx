@@ -21,7 +21,7 @@ const ANAJ_HINDI: Record<string, string> = {
 
 export default function Settings() {
   const { rates, isLoaded, saveRates } = useSettings();
-  const { shopCode, syncStatus, lastSyncTime, apiServerUrl, saveApiServerUrl, testApiConnection, setupShop, syncNow, disconnectShop } = useSync();
+  const { shopCode, syncStatus, syncError, lastSyncTime, apiServerUrl, saveApiServerUrl, testApiConnection, setupShop, syncNow, disconnectShop } = useSync();
   const { isDark, toggleTheme } = useTheme();
   const { toast } = useToast();
 
@@ -198,7 +198,7 @@ export default function Settings() {
     syncStatus === "syncing" ? "Sync ho raha hai..." :
     syncStatus === "synced" ? `Synced — ${lastSyncTime}` :
     syncStatus === "offline" ? "Offline mode (data saved locally)" :
-    syncStatus === "error" ? "Sync mein dikkat (retry karein)" :
+    syncStatus === "error" ? (syncError || "Sync mein dikkat (retry karein)") :
     "Sync nahi hua";
 
   if (!isLoaded) return null;
@@ -307,13 +307,13 @@ export default function Settings() {
         <div>
           <h3 className="text-lg font-bold">🌐 Sync Server URL</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Installed APK ko live Replit server ka HTTPS address chahiye. Sirf website ka HTML page nahi, usi host par /api/health JSON chalna chahiye.
+            Website hosted sync server ko automatically use karti hai. Installed APK mein bhi isi shared server ka URL save karein, taaki dono devices ek hi database se sync hon. Server check ke liye Test Connection dabayein.
           </p>
         </div>
         <Input
           value={serverUrlInput}
           onChange={(e) => setServerUrlInput(e.target.value)}
-          placeholder="https://aapka-app.replit.app"
+          placeholder="https://chakki-manager-api.onrender.com"
           inputMode="url"
           autoCapitalize="none"
           autoCorrect="off"
@@ -356,7 +356,7 @@ export default function Settings() {
               "bg-secondary text-muted-foreground"
             }`}>
               {syncStatusIcon}
-              <span>{syncStatusText}</span>
+              <span className="min-w-0 break-words">{syncStatusText}</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button onClick={syncNow} variant="outline" className="h-11 rounded-xl gap-2 text-sm">
